@@ -27,18 +27,24 @@ else
   echo "Cannot access \"$DOCKER_SOCK\", won't look for containers to stop"
 fi
 
-
 if [ -S "$DOCKER_SOCK" ]; then
   TEMPFILE="$(mktemp)"
   docker ps \
+    --filter "label=docker-volume-backup.exec-backup.ident=$BACKUP_IDENT" \
     --filter "label=docker-volume-backup.exec-pre-backup" \
     --format '{{.ID}} {{.Label "docker-volume-backup.exec-pre-backup"}}' \
-    > "$TEMPFILE"
-  while read line; do
-    info "Pre-exec command: $line"
-    docker exec $line
-  done < "$TEMPFILE"
-  rm "$TEMPFILE"
+      > "$TEMPFILE"
+  CONTAINER_TO_EXEC="$(cat $TEMPFILE | wc -l)"
+  info "$CONTAINER_TO_EXEC containers have Pre-Backup commands"
+  if [ $CONTAINER_TO_EXEC -gt 0 ]; then
+    while read line; do
+       PRECMD=( $(IFS=" " echo "$line") )
+       COMMAND=${PRECMD[@]:1:100}
+       info "executing Pre-Backup command \"${COMMAND}\" on container \"${PRECMD[0]}\" for ident \"$BACKUP_IDENT:\""
+       docker exec $line
+    done < "$TEMPFILE"
+    rm "$TEMPFILE"
+  fi
 fi
 
 if [ "$CONTAINERS_TO_STOP_TOTAL" != "0" ]; then
@@ -61,14 +67,21 @@ fi
 if [ -S "$DOCKER_SOCK" ]; then
   TEMPFILE="$(mktemp)"
   docker ps \
+    --filter "label=docker-volume-backup.exec-backup.ident=$BACKUP_IDENT" \
     --filter "label=docker-volume-backup.exec-post-backup" \
     --format '{{.ID}} {{.Label "docker-volume-backup.exec-post-backup"}}' \
-    > "$TEMPFILE"
-  while read line; do
-    info "Post-exec command: $line"
-    docker exec $line
-  done < "$TEMPFILE"
-  rm "$TEMPFILE"
+      > "$TEMPFILE"
+  CONTAINER_TO_EXEC="$(cat $TEMPFILE | wc -l)"
+  info "$CONTAINER_TO_EXEC containers have Post-Backup commands"
+  if [ $CONTAINER_TO_EXEC -gt 0 ]; then
+    while read line; do
+       POSTCMD=( $(IFS=" " echo "$line") )
+       COMMAND=${POSTCMD[@]:1:100}
+       info "executing Post-Backup command \"${COMMAND}\" on container \"${POSTCMD[0]}\" for ident \"$BACKUP_IDENT:\""
+       docker exec $line
+    done < "$TEMPFILE"
+    rm "$TEMPFILE"
+  fi
 fi
 
 info "Waiting before processing"
@@ -124,3 +137,4 @@ fi
 
 info "Backup finished"
 echo "Will wait for next scheduled backup"
+
