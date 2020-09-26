@@ -23,7 +23,7 @@ function container_stop {
 
 function container_start {
   if [ "$CONTAINERS_TO_STOP_TOTAL" != "0" ]; then
-    info "Stopping containers"
+    info "Starting containers"
     docker start $CONTAINERS_TO_STOP
   fi
 }
